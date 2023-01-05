@@ -6,7 +6,7 @@ from fastapi_users import BaseUserManager, UUIDIDMixin, exceptions, schemas, mod
 
 from models import User, get_user_db
 
-from config import SECRET
+from src.config import SECRET
 
 
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):

@@ -20,10 +20,10 @@ class User(Base):
 
     email: str = Column(String(length=320), unique=True, index=True, nullable=False)
     hashed_password: str = Column(String(length=1024), nullable=False)
-    company: str = Column(String(length=40), nullable=False)
-    position
-    username
-    usertype
+    company: str = Column(String(length=40), nullable=True)
+    position: str = Column(String(length=40), nullable=True)
+    username: str = Column(String(length=150), unique=True, nullable=False)
+    usertype: str = Column(String(length=5), nullable=False, default='buyer')
     is_active: bool = Column(Boolean, default=True, nullable=False)
     is_superuser: bool = Column(Boolean, default=False, nullable=False)
     is_verified: bool = Column(Boolean, default=False, nullable=False)
@@ -41,30 +41,30 @@ class Shop(Base):
 
     __tablename__ = "shops"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String(50), nullable=False)
-    url = Column(String, nullable=False)
-    state = Column(Boolean, default=True, nullable=False)
-    products = relationship("ProductInfo", back_populates="products")
+    id: int = Column(Integer, primary_key=True)
+    name: str = Column(String(length=50), nullable=False)
+    url: str = Column(String, nullable=False)
+    state: bool = Column(Boolean, default=True, nullable=False)
+    products: list = relationship("ProductInfo", back_populates="products")
 
 
 class Category(Base):
 
     __tablename__ = "categories"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String(40), nullable=False)
-    shops = relationship(Shop, secondary="shop_category", back_populates="shops")
-    products = relationship("Product", back_populates="products")
+    id: int = Column(Integer, primary_key=True)
+    name: str = Column(String(length=40), nullable=False)
+    shops: list = relationship(Shop, secondary="shop_category", back_populates="shops")
+    products: list = relationship("Product", back_populates="products")
 
 
 class Product(Base):
 
     __tablename__ = "products"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String(80), nullable=False)
-    category_id = Column(Integer,
+    id: int = Column(Integer, primary_key=True)
+    name: str = Column(String(length=80), nullable=False)
+    category_id: int = Column(Integer,
                          ForeignKey("categories.id", ondelete="CASCADE"),
                          nullable=False)
 
@@ -73,15 +73,15 @@ class ProductInfo(Base):
 
     __tablename__ = "product_info"
 
-    id = Column(Integer, primary_key=True)
-    model = Column(String(80))
-    external_id = Column(Integer, nullable=False),
-    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"))
-    shop_id = Column(Integer, ForeignKey("shops.id", ondelete="CASCADE"))
-    quantity = Column(Integer)
-    price = Column(Integer)
-    price_rrc = Column(Integer)
-    ordered_items = relationship("OrderItem", back_populates="product_info")
+    id: int = Column(Integer, primary_key=True)
+    model: str = Column(String(length=80))
+    external_id: int = Column(Integer, nullable=False),
+    product_id: int = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"))
+    shop_id: int = Column(Integer, ForeignKey("shops.id", ondelete="CASCADE"))
+    quantity: int = Column(Integer)
+    price: int = Column(Integer)
+    price_rrc: int = Column(Integer)
+    ordered_items: list = relationship("OrderItem", back_populates="product_info")
 
 
 class Parameter(Base):

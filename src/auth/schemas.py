@@ -6,7 +6,7 @@ from fastapi_users import schemas, models
 
 
 class UserRead(schemas.BaseUser[uuid.UUID]):
-    id: models.ID
+    id: int
     email: EmailStr
     is_active: bool = True
     is_superuser: bool = False

@@ -2,7 +2,7 @@ from fastapi import Depends
 from fastapi_users.authentication import CookieTransport, AuthenticationBackend
 from fastapi_users.authentication.strategy.db import AccessTokenDatabase, DatabaseStrategy
 
-from models import AccessToken, User, get_access_token_db
+from models import AccessToken, get_access_token_db
 
 cookie_transport = CookieTransport(cookie_max_age=3600)
 
