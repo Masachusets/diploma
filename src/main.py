@@ -1,27 +1,28 @@
-from typing import Union
+import uvicorn
 
 from fastapi import FastAPI
-from pydantic import BaseModel
+from auth.base_config import fastapi_users, auth_backend
+from auth.schemas import UserRead, UserCreate
+from ordering_goods.router import router_shop, router_category
 
-app = FastAPI()
-
-
-class Item(BaseModel):
-    name: str
-    price: float
-    is_offer: Union[bool, None] = None
+app = FastAPI(title="Ordering goods by FastAPI")
 
 
-@app.get("/")
-async def read_root():
-    return {"Hello": "World"}
+app.include_router(
+    fastapi_users.get_auth_router(auth_backend),
+    prefix="/auth",
+    tags=["Auth"],
+)
 
+app.include_router(
+    fastapi_users.get_register_router(UserRead, UserCreate),
+    prefix="/auth",
+    tags=["Auth"],
+)
 
-@app.get("/items/{item_id}")
-async def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
+app.include_router(router_shop)
+app.include_router(router_category)
 
-
-@app.put("/items/{item_id}")
-async def update_item(item_id: int, item: Item):
-    return {"item_name": item.name, "item_id": item_id}
+if __name__ == "__main__":
+    # run app on the host and port
+    uvicorn.run(app, host="0.0.0.0", port=8000)

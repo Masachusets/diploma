@@ -1,15 +1,14 @@
-import uuid
 from typing import Optional
 
 from fastapi import Depends, Request
-from fastapi_users import BaseUserManager, UUIDIDMixin, exceptions, schemas, models
+from fastapi_users import BaseUserManager, IntegerIDMixin, exceptions, schemas, models
 
-from models import User, get_user_db
-
+from src.db.models import User
+from src.auth.utils import get_user_db
 from src.config import SECRET
 
 
-class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
+class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     reset_password_token_secret = SECRET
     verification_token_secret = SECRET
 
@@ -20,7 +19,7 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
         request: Optional[Request] = None,
     ) -> models.UP:
         """
-        Create a user in database.
+        Create a user in db.
 
         Triggers the on_after_register handler on success.
 
