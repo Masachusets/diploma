@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 from src.config import DB_USER, DB_HOST, DB_NAME, DB_PASS, DB_PORT
-from src.db.models import SQLModel
+from src.db.models import Base
 
 
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
@@ -20,4 +20,4 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
 
 async def create_db_and_tables():
     async with engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
+        await conn.run_sync(Base.metadata.create_all)

@@ -5,12 +5,12 @@ from fastapi_users import BaseUserManager, IntegerIDMixin, exceptions, schemas, 
 
 from src.db.models import User
 from src.auth.utils import get_user_db
-from src.config import SECRET
+from src.config import RESET_PASSWORD_TOKEN_SERVER, VERIFICATION_TOKEN_SERVER
 
 
 class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
-    reset_password_token_secret = SECRET
-    verification_token_secret = SECRET
+    reset_password_token_secret = RESET_PASSWORD_TOKEN_SERVER
+    verification_token_secret = VERIFICATION_TOKEN_SERVER
 
     async def create(
         self,
@@ -53,6 +53,20 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
     async def on_after_register(self, user: User, request: Optional[Request] = None):
         print(f"User {user.id} has registered.")
+
+    async def on_after_login(
+        self, user: User, request: Optional[Request] = None
+    ) -> None:
+        """
+        Perform logic after user login.
+
+        *You should overload this method to add your own logic.*
+
+        :param user: The user that is logging in
+        :param request: Optional FastAPI request that
+        triggered the operation, defaults to None.
+        """
+        print(f"User {user.username} has logined. {request.cookies}")
 
     async def on_after_forgot_password(
         self, user: User, token: str, request: Optional[Request] = None

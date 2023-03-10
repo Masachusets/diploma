@@ -1,24 +1,24 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, List, Literal
 
 from fastapi_users.db import SQLAlchemyBaseUserTable
 from fastapi_users_db_sqlalchemy.access_token import SQLAlchemyBaseAccessTokenTable
 from pydantic import EmailStr
 from sqlalchemy import TIMESTAMP, Column, Integer, String, Boolean, ForeignKey
 from sqlalchemy.orm import declared_attr, relationship
-from sqlalchemy.ext.declarative import declarative_base, DeclarativeMeta
-from sqlmodel import Field, Relationship, SQLModel
+from sqlalchemy.schema import UniqueConstraint
+from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
 
 
-class UserEnum(str, Enum):
+class UserTypeEnum(str, Enum):
     BUYER = "buyer"
     SHOP = "shop"
 
 
-class OrderEnum(str, Enum):
+class OrderStateEnum(str, Enum):
     BASKET = "basket"
     NEW = "new"
     CONFIRMED = "confirmed"
@@ -40,40 +40,39 @@ class User(SQLAlchemyBaseUserTable[int], Base):
 
     company: str = Column(String(length=40), default=None)
     position: str = Column(String(length=40), default=None)
-    username: str = Column(String(length=150), unique=True)
-    usertype: UserEnum = Column(String(length=5), default="buyer")
+    username: str = Column(String(length=150), unique=True, nullable=False)
+    usertype: Literal["buyer", "shop"] = Column(String(length=5), default="buyer")
     shop: "Shop" = relationship("Shop", back_populates="user")
     contacts: List["Contact"] = relationship("Contact", back_populates="user")
     orders: List["Order"] = relationship("Order", back_populates="user")
 
-
-class AccessToken(SQLAlchemyBaseAccessTokenTable[int], Base):
-
-    @declared_attr
-    def user_id(cls):
-        return Field(foreign_key="user.id", nullable=False)
+    __mapper_args__ = {"eager_defaults": True}
 
 
-class ShopCategoryLink(Base):
+class ShopCategory(Base):
 
     __tablename__ = "shop_category"
 
-    shop_id: int = Column("shop_id", ForeignKey("shop.id"))
-    category_id: int = Column("category_id", ForeignKey("category.id"))
+    shop_id: int = Column(ForeignKey("shop.id", ondelete="cascade"), primary_key=True)
+    category_id: int = Column(ForeignKey("category.id", ondelete="cascade"), primary_key=True)
 
 
 class Shop(Base):
 
     __tablename__ = "shop"
 
-    id: Optional[int] = Column(Integer, primary_key=True)
-    name: str = Column(String(length=50))
+    id: Optional[int] = Column(Integer, primary_key=True, autoincrement=True)
+    name: str = Column(String(length=50), unique=True)
     url: str = Column(String)
-    user_id: int = Column(Integer, ForeignKey("user.id"))
-    user: "User" = relationship("User", back_populates="shop")
+    user_id: int = Column(Integer, ForeignKey("user.id", ondelete="cascade"))
+    user: User = relationship("User", back_populates="shop")
     state: bool = Column(Boolean, default=True)
     products_info: List["ProductInfo"] = relationship("ProductInfo", back_populates="shop")
-    categories: List["Category"] = relationship("Category", secondary=ShopCategoryLink)
+    categories: List["Category"] = relationship("Category",
+                                                secondary="shop_category",
+                                                back_populates="shops",
+                                                # lazy="joined"
+                                                )
 
 
 class Category(Base):
@@ -82,86 +81,106 @@ class Category(Base):
 
     id: Optional[int] = Column(Integer, primary_key=True)
     name: str = Column(String(length=40), unique=True)
-    shops: List["Shop"] = relationship("Shop", secondary=ShopCategoryLink)
+    shops: List[Shop] = relationship("Shop",
+                                     secondary="shop_category",
+                                     back_populates="categories",
+                                     # lazy="joined"
+                                     )
     products: List["Product"] = relationship("Product", back_populates="category")
 
 
-class Product(SQLModel, table=True):
+class Product(Base):
 
     __tablename__ = "product"
 
-    id: Optional[int] = Field(primary_key=True)
-    name: str = Field(max_length=80)
-    category_id: Optional[int] = Field(foreign_key="category.id")
-    product_info: List["ProductInfo"] = Relationship(back_populates="product")
+    id: Optional[int] = Column(Integer, primary_key=True)
+    name: str = Column(String(length=80))
+    category_id: int = Column(Integer, ForeignKey("category.id", ondelete="cascade"))
+    category: "Category" = relationship("Category", back_populates="products")
+    products_info: List["ProductInfo"] = relationship("ProductInfo", back_populates="product")
 
 
-class ProductInfo(SQLModel, table=True):
+class ProductInfo(Base):
 
     __tablename__ = "product_info"
 
-    id: Optional[int] = Field(primary_key=True)
-    model: Optional[str] = Field(max_length=80)
-    external_id: int = Field(ge=0)
-    product_id: Optional[int] = Field(foreign_key="product.id")
-    shop_id: Optional[int] = Field(foreign_key="shop.id")
-    quantity: int = Field(ge=0)
-    price: int = Field(ge=0)
-    price_rrc: int = Field(ge=0)
-    order_items: List["OrderItem"] = Relationship(back_populates="product_info")
+    id: Optional[int] = Column(Integer, primary_key=True)
+    model: str = Column(String(length=80))
+    external_id: int = Column(Integer)
+    product_id: int = Column(Integer, ForeignKey("product.id", ondelete="cascade"))
+    product: Product = relationship("Product", back_populates="products_info")
+    shop_id: int = Column(ForeignKey("shop.id"))
+    shop: Shop = relationship("Shop", back_populates="products_info")
+    quantity: int = Column(Integer)
+    price: int = Column(Integer)
+    price_rrc: int = Column(Integer)
+    order_items: List["OrderItem"] = relationship("OrderItem", back_populates="product_info")
+    product_parameters: List["ProductParameter"] = relationship("ProductParameter", back_populates="product_info")
+    __table_args__ = (UniqueConstraint('product_id', 'shop_id', 'external_id', name='_unique_product_info'),
+                      )
+    
 
-
-class Parameter(SQLModel, table=True):
+class Parameter(Base):
 
     __tablename__ = "parameter"
 
-    id: Optional[int] = Field(primary_key=True)
-    name: str = Field(max_length=40)
-    product_parameters: List["ProductParameter"] = Relationship(back_populates="parameter")
+    id: Optional[int] = Column(Integer, primary_key=True)
+    name: str = Column(String(length=40))
+    product_parameters: List["ProductParameter"] = relationship("ProductParameter", back_populates="parameter")
 
 
-class ProductParameter(SQLModel, table=True):
+class ProductParameter(Base):
 
     __tablename__ = "product_parameter"
 
-    id: Optional[int] = Field(primary_key=True)
-    product_info_id: Optional[int] = Field(foreign_key="product_info.id")
-    parameter_id: int = Field(foreign_key=Parameter.id)
-    value: str = Field(max_length=100)
+    id: Optional[int] = Column(Integer, primary_key=True)
+    product_info_id: int = Column(Integer, ForeignKey("product_info.id", ondelete="cascade"))
+    product_info: ProductInfo = relationship("ProductInfo", back_populates="product_parameters")
+    parameter_id: int = Column(Integer, ForeignKey("parameter.id", ondelete="cascade"))
+    parameter: Parameter = relationship("Parameter", back_populates="product_parameters")
+    value: str = Column(String(length=100))
+    __table_args__ = (UniqueConstraint('product_info_id', 'parameter_id', name='_unique_product_info_parameter'),
+                      )
 
 
-class Contact(SQLModel, table=True):
+class Contact(Base):
 
     __tablename__ = "contact"
 
-    id: Optional[int] = Field(primary_key=True)
-    user_id: Optional[int] = Field(foreign_key="user.id")
-    city: str = Field(max_length=50)
-    street: str = Field(max_length=100)
-    house: Optional[str] = Field(max_length=15)
-    structure: Optional[str] = Field(max_length=15)
-    building: Optional[str] = Field(max_length=15)
-    apartment: Optional[str] = Field(max_length=15)
-    phone: str = Field(max_length=50)
+    id: Optional[int] = Column(Integer, primary_key=True)
+    user_id: int = Column(Integer, ForeignKey("user.id"))
+    user: User = relationship(User, back_populates="contacts")
+    city: str = Column(String(length=50))
+    street: str = Column(String(length=100))
+    house: str = Column(String(length=15))
+    structure: str = Column(String(length=15))
+    building: str = Column(String(length=15))
+    apartment: str = Column(String(length=15))
+    phone: str = Column(String(length=50))
 
 
-class Order(SQLModel, table=True):
+class Order(Base):
 
     __tablename__ = "order"
 
-    id: Optional[int] = Field(primary_key=True)
-    user_id: Optional[int] = Field(foreign_key="user.id")
-    dt: datetime = Field(default_factory=TIMESTAMP)
-    state: OrderEnum
-    contact_id: Optional[int] = Field(foreign_key="contact.id")
-    order_items: List["OrderItem"] = Relationship(back_populates="order")
+    id: Optional[int] = Column(Integer, primary_key=True)
+    user_id: int = Column(Integer, ForeignKey("user.id", ondelete="cascade"))
+    user: User = relationship("User", back_populates="orders")
+    dt_at: datetime = Column(TIMESTAMP, default=datetime.utcnow)
+    state: str = Column(String(length=10))
+    contact_id: int = Column(Integer, ForeignKey("contact.id", ondelete="cascade"))
+    order_items: List["OrderItem"] = relationship("OrderItem", back_populates="order")
 
 
-class OrderItem(SQLModel, table=True):
+class OrderItem(Base):
 
     __tablename__ = "order_item"
 
-    id: Optional[int] = Field(primary_key=True)
-    order_id: Optional[int] = Field(foreign_key="order.id")
-    product_info_id: Optional[int] = Field(foreign_key="product_info.id")
-    quantity: int = Field(ge=0)
+    id: Optional[int] = Column(Integer, primary_key=True)
+    order_id: int = Column(Integer, ForeignKey("order.id", ondelete="cascade"))
+    order: Order = relationship("Order", back_populates="order_items")
+    product_info_id: int = Column(Integer, ForeignKey("product_info.id", ondelete="cascade"))
+    product_info: ProductInfo = relationship("ProductInfo", back_populates="order_items")
+    quantity: int = Column(Integer)
+    __table_args__ = (UniqueConstraint('order_id', 'product_info_id', name='unique_order_item'),
+                      )
